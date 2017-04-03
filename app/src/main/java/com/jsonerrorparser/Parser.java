@@ -20,6 +20,10 @@ public class Parser {
 
     private static final String TAG = Parser.class.getSimpleName();
 
+    private static Map<String, Object> clearedMap = new HashMap<>();
+    private static Map<String, Object> notClearedMap = new HashMap<>();
+    private static String source;
+
     public static String parse(String stringJson) {
         String errorMessage = "";
         errorMessage = simpleParsing(stringJson);
@@ -27,6 +31,7 @@ public class Parser {
     }
 
     private static String simpleParsing(String stringJson) {
+        source = stringJson;
         String errorKey = "";
         String message = "";
         try {
@@ -78,11 +83,18 @@ public class Parser {
         return string == null || string.isEmpty();
     }
 
-    public static Map<String, Object> jsonToMap(JSONObject json) throws JSONException {
+    public static Map<String, Object> jsonToMap(String source) throws JSONException {
+        JSONObject json = new JSONObject(source);
         Map<String, Object> retMap = new HashMap<String, Object>();
-
         if (json != JSONObject.NULL) {
             retMap = toMap(json);
+            notClearedMap = retMap;
+        }
+        clearUpMap(retMap);
+        try {
+            Log.d(TAG, "message by position - " + getMessageByPosition(3, 0, true));
+        } catch (IndexOutOfBoundsException e) {
+            e.printStackTrace();
         }
         return retMap;
     }
@@ -109,9 +121,9 @@ public class Parser {
             }
         }
         //
-        for (Map.Entry entry : map.entrySet()) {
-            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
-        }
+//        for (Map.Entry entry : map.entrySet()) {
+//            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
+//        }
         //
         return map;
     }
@@ -136,5 +148,44 @@ public class Parser {
         return list;
     }
 
+    private static void clearUpMap(Map<String, Object> map) {
+        Log.d(TAG, "================================");
+        for (Map.Entry entry : map.entrySet()) {
+            String value = entry.getValue().toString();
+            value = value
+                    .replaceAll("\\[", "")
+                    .replaceAll("\\]", "")
+                    .replaceAll("\\{", "")
+                    .replaceAll("\\}", "")
+                    .replaceAll("=", ":")
+                    .trim();
+            clearedMap.put(entry.getKey().toString(), value);
+            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
+            Log.d(TAG, "||||||||||||||||||||||||||||");
+        }
+        for (Map.Entry entry : clearedMap.entrySet()) {
+            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
+        }
+        Log.d(TAG, "================================");
+    }
+
+    public static String getMessageByPosition(int keyPosition, int messagePosition, boolean cleared) throws IndexOutOfBoundsException {
+        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
+        if (keyPosition >= map.size()) {
+            throw new IndexOutOfBoundsException("Make sure that indexes of keyPosition and messagePosition are valid");
+        }
+        String neededMessage = "";
+        int i = 0;
+        for (Map.Entry entry : map.entrySet()) {
+            if (i++ == keyPosition) {
+                String[] messagesArr = entry.getValue().toString().split(", ");
+                neededMessage = messagesArr[messagePosition];
+                break;
+            }
+        }
+        return neededMessage;
+    }
+
+    // TODO: 4/3/17 with keys
 
 }
