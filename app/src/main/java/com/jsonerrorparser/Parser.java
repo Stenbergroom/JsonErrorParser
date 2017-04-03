@@ -48,7 +48,7 @@ public class Parser {
             Iterator<String> iter = jsonObject.keys();
             errorKey = iter.next();
             if (!isNullOrEmpty(errorKey) && !errorKey.equals("non_field_errors")) {
-//                Log.d(TAG, "parsed JSONArray");
+                Log.d(TAG, "parsed JSONArray");
                 return errorKey + " - " + message;
             } else {
                 return message;
@@ -67,7 +67,7 @@ public class Parser {
                 errorKey = iter.next();
             }
             if (!isNullOrEmpty(errorKey) && !errorKey.equals("non_field_errors")) {
-//                Log.d(TAG, "parsed JSONObject");
+                Log.d(TAG, "parsed JSONObject");
                 return errorKey + " - " + message;
             } else {
                 return message;
