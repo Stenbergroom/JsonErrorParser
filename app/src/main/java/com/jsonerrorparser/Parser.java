@@ -20,17 +20,24 @@ public class Parser {
 
     private static final String TAG = Parser.class.getSimpleName();
 
-    private static Map<String, Object> clearedMap = new HashMap<>();
+    private static Map<String, Object> clearedMap    = new HashMap<>();
     private static Map<String, Object> notClearedMap = new HashMap<>();
+    private static Map<String, Object> notNestingMap = new HashMap<>();
     private static String source;
 
-    public static String parse(String stringJson) {
+    public static String simpleParsing(String stringJson) {
         String errorMessage = "";
-        errorMessage = simpleParsing(stringJson);
+        errorMessage = parseFirstError(stringJson, "");
         return errorMessage;
     }
 
-    private static String simpleParsing(String stringJson) {
+    public static String simpleParsing(String stringJson, String exceptKey) {
+        String errorMessage = "";
+        errorMessage = parseFirstError(stringJson, exceptKey);
+        return errorMessage;
+    }
+
+    private static String parseFirstError(String stringJson, String exceptKey) {
         source = stringJson;
         String errorKey = "";
         String message = "";
@@ -47,7 +54,7 @@ public class Parser {
 //            }
             Iterator<String> iter = jsonObject.keys();
             errorKey = iter.next();
-            if (!isNullOrEmpty(errorKey) && !errorKey.equals("non_field_errors")) {
+            if (!isNullOrEmpty(errorKey) && !errorKey.equals(exceptKey)) {
                 Log.d(TAG, "parsed JSONArray");
                 return errorKey + " - " + message;
             } else {
@@ -66,7 +73,7 @@ public class Parser {
             for (Iterator<String> iter = jsonObject.keys(); iter.hasNext(); ) {
                 errorKey = iter.next();
             }
-            if (!isNullOrEmpty(errorKey) && !errorKey.equals("non_field_errors")) {
+            if (!isNullOrEmpty(errorKey) && !errorKey.equals(exceptKey)) {
                 Log.d(TAG, "parsed JSONObject");
                 return errorKey + " - " + message;
             } else {
@@ -79,11 +86,11 @@ public class Parser {
         return "";
     }
 
-    public static boolean isNullOrEmpty(String string) {
+    private static boolean isNullOrEmpty(String string) {
         return string == null || string.isEmpty();
     }
 
-    public static Map<String, Object> jsonToMap(String source) throws JSONException {
+    private static Map<String, Object> jsonToMap(String source) throws JSONException {
         JSONObject json = new JSONObject(source);
         Map<String, Object> retMap = new HashMap<String, Object>();
         if (json != JSONObject.NULL) {
@@ -91,11 +98,12 @@ public class Parser {
             notClearedMap = retMap;
         }
         clearUpMap(retMap);
-        try {
-            Log.d(TAG, "message by position - " + getMessageByPosition(3, 0, true));
-        } catch (IndexOutOfBoundsException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            Log.d(TAG, "message by position - " + getMessageByPosition(3, 0, true));
+//        } catch (IndexOutOfBoundsException e) {
+//            e.printStackTrace();
+//        }
+        Log.d(TAG, "notnestingMap- " + notNestingMap.toString());
         return retMap;
     }
 
@@ -106,6 +114,7 @@ public class Parser {
         while (keysItr.hasNext()) {
             String key = keysItr.next();
             Object value = object.get(key);
+            notNestingMap.put(key, value);
 
             if (value instanceof JSONArray) {
                 value = toList((JSONArray) value);
@@ -169,7 +178,8 @@ public class Parser {
         Log.d(TAG, "================================");
     }
 
-    public static String getMessageByPosition(int keyPosition, int messagePosition, boolean cleared) throws IndexOutOfBoundsException {
+    public static String getMessageByPosition(String source, int keyPosition, int messagePosition, boolean cleared) throws Exception {
+        jsonToMap(source);
         Map<String, Object> map = cleared ? clearedMap : notClearedMap;
         if (keyPosition >= map.size()) {
             throw new IndexOutOfBoundsException("Make sure that indexes of keyPosition and messagePosition are valid");
@@ -186,6 +196,55 @@ public class Parser {
         return neededMessage;
     }
 
-    // TODO: 4/3/17 with keys
+    public static String getKeyWithMessageByPosition(String source, int keyPosition, int messagePosition, boolean cleared) throws Exception {
+        jsonToMap(source);
+        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
+        if (keyPosition >= map.size()) {
+            throw new IndexOutOfBoundsException("Make sure that indexes of keyPosition and messagePosition are valid");
+        }
+        String neededMessage = "";
+        String neededKey = "";
+        int i = 0;
+        for (Map.Entry entry : map.entrySet()) {
+            if (i++ == keyPosition) {
+                String[] messagesArr = entry.getValue().toString().split(", ");
+                neededKey = entry.getKey().toString();
+                neededMessage = messagesArr[messagePosition];
+                break;
+            }
+        }
+        return neededKey + " - " + neededMessage;
+    }
+
+    public static String getMessageByKey(String source, String key, boolean cleared) throws Exception {
+        jsonToMap(source);
+        //Map<String, Object> map = cleared ? clearedMap : notClearedMap;
+        Map<String, Object> map = notNestingMap;
+        String neededMessage = "";
+        for (Map.Entry entry : map.entrySet()) {
+            if (key.equals(entry.getKey().toString())) {
+                neededMessage = entry.getValue().toString().trim();
+                break;
+            }
+        }
+        return neededMessage;
+    }
+
+    public static String getMessageByKey(String source, String key, int messagePosition, boolean cleared) throws Exception {
+        jsonToMap(source);
+        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
+        String neededMessage = "";
+        int i = 0;
+        for (Map.Entry entry : map.entrySet()) {
+            if (key.equals(entry.getKey().toString())) {
+                String[] messagesArr = entry.getValue().toString().split(", ");
+                neededMessage = messagesArr[messagePosition];
+                break;
+            }
+        }
+        return neededMessage;
+    }
+
+    // TODO: 4/4/17 all errors and keys
 
 }
