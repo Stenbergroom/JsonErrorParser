@@ -7,6 +7,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -20,25 +21,45 @@ public class Parser {
 
     private static final String TAG = Parser.class.getSimpleName();
 
-    private static Map<String, Object> clearedMap    = new HashMap<>();
-    private static Map<String, Object> notClearedMap = new HashMap<>();
     private static Map<String, Object> notNestingMap = new HashMap<>();
-    private static String source;
+    private static Map<String, Object> clearedMap    = new HashMap<>();
 
+    /**
+     * This method returns first key and first value from json, this parsing will be enough
+     * for simple and valid json, if you need to get first key-value message
+     *
+     * @param stringJson original String json for parsing
+     * @return the firs key-value message
+     */
     public static String simpleParsing(String stringJson) {
         String errorMessage = "";
         errorMessage = parseFirstError(stringJson, "");
         return errorMessage;
     }
 
+    /**
+     * This method returns first value from json without key, this parsing will be enough
+     * for simple and valid json, if you need to get first message without key
+     *
+     * @param stringJson original String json for parsing
+     * @param exceptKey  key that need to remove from message
+     * @return first value message from json
+     */
     public static String simpleParsing(String stringJson, String exceptKey) {
         String errorMessage = "";
         errorMessage = parseFirstError(stringJson, exceptKey);
         return errorMessage;
     }
 
+    /**
+     * This method returns first key-value message from json, if except key is present - value
+     * without key will be returned. This method parses JSONObject or JSONArray
+     *
+     * @param stringJson original String json for parsing
+     * @param exceptKey  key that need to remove from message
+     * @return first key-value or value message depends on exceptKey
+     */
     private static String parseFirstError(String stringJson, String exceptKey) {
-        source = stringJson;
         String errorKey = "";
         String message = "";
         try {
@@ -48,14 +69,9 @@ public class Parser {
 
             message = jsonObject.getJSONArray(keys.next()).get(defaultValueIndex).toString();
 
-            //return message;
-//            for (Iterator<String> iter = jsonObject.keys(); iter.hasNext(); ) {
-//                errorKey = iter.next();
-//            }
             Iterator<String> iter = jsonObject.keys();
             errorKey = iter.next();
             if (!isNullOrEmpty(errorKey) && !errorKey.equals(exceptKey)) {
-                Log.d(TAG, "parsed JSONArray");
                 return errorKey + " - " + message;
             } else {
                 return message;
@@ -69,12 +85,11 @@ public class Parser {
             Iterator<String> keys = jsonObject.keys();
 
             message = jsonObject.getString(keys.next());
-            //return message;
+
             for (Iterator<String> iter = jsonObject.keys(); iter.hasNext(); ) {
                 errorKey = iter.next();
             }
             if (!isNullOrEmpty(errorKey) && !errorKey.equals(exceptKey)) {
-                Log.d(TAG, "parsed JSONObject");
                 return errorKey + " - " + message;
             } else {
                 return message;
@@ -86,25 +101,12 @@ public class Parser {
         return "";
     }
 
-    private static boolean isNullOrEmpty(String string) {
-        return string == null || string.isEmpty();
-    }
-
-    private static Map<String, Object> jsonToMap(String source) throws JSONException {
+    private static void jsonToMap(String source) throws JSONException {
         JSONObject json = new JSONObject(source);
-        Map<String, Object> retMap = new HashMap<String, Object>();
         if (json != JSONObject.NULL) {
-            retMap = toMap(json);
-            notClearedMap = retMap;
+            notNestingMap = toMap(json);
         }
-        clearUpMap(retMap);
-//        try {
-//            Log.d(TAG, "message by position - " + getMessageByPosition(3, 0, true));
-//        } catch (IndexOutOfBoundsException e) {
-//            e.printStackTrace();
-//        }
-        Log.d(TAG, "notnestingMap- " + notNestingMap.toString());
-        return retMap;
+        Log.d(TAG, "cleared map - " + clearedMap.toString());
     }
 
     private static Map<String, Object> toMap(JSONObject object) throws JSONException {
@@ -114,8 +116,9 @@ public class Parser {
         while (keysItr.hasNext()) {
             String key = keysItr.next();
             Object value = object.get(key);
-            notNestingMap.put(key, value);
-
+            if (isValueValid(value.toString())) {
+                notNestingMap.put(key, value);
+            }
             if (value instanceof JSONArray) {
                 value = toList((JSONArray) value);
             } else if (value instanceof JSONObject) {
@@ -125,15 +128,11 @@ public class Parser {
                 if (!((List<Object>) value).isEmpty()) {
                     map.put(key, value);
                 }
-            } else if (!value.toString().equals("{}")) {
+            } else if (isValueValid(value.toString())) {
                 map.put(key, value);
             }
         }
-        //
-//        for (Map.Entry entry : map.entrySet()) {
-//            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
-//        }
-        //
+        clearUpMap(map);
         return map;
     }
 
@@ -150,45 +149,34 @@ public class Parser {
                 if (!((List<Object>) value).isEmpty()) {
                     list.add(value);
                 }
-            } else if (!value.toString().equals("{}")) {
+            } else if (isValueValid(value.toString())) {
                 list.add(value);
             }
         }
+        list.removeAll(Arrays.asList(null, "", ",", " "));
         return list;
     }
 
-    private static void clearUpMap(Map<String, Object> map) {
-        Log.d(TAG, "================================");
-        for (Map.Entry entry : map.entrySet()) {
-            String value = entry.getValue().toString();
-            value = value
-                    .replaceAll("\\[", "")
-                    .replaceAll("\\]", "")
-                    .replaceAll("\\{", "")
-                    .replaceAll("\\}", "")
-                    .replaceAll("=", ":")
-                    .trim();
-            clearedMap.put(entry.getKey().toString(), value);
-            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
-            Log.d(TAG, "||||||||||||||||||||||||||||");
-        }
-        for (Map.Entry entry : clearedMap.entrySet()) {
-            Log.d(TAG, entry.getKey().toString() + ", " + entry.getValue().toString());
-        }
-        Log.d(TAG, "================================");
-    }
-
-    public static String getMessageByPosition(String source, int keyPosition, int messagePosition, boolean cleared) throws Exception {
+    /**
+     * This method returns value by key position and message position. This is what
+     * you need when you need only one value from list of values in the json by key
+     *
+     * @param source          original String json for parsing
+     * @param keyPosition     needed position of key
+     * @param messagePosition needed position of message if there is list of messages
+     * @return value without key from original json
+     * @throws Exception if index of key or message not valid
+     */
+    public static String getMessageByPosition(String source, int keyPosition, int messagePosition) throws Exception {
         jsonToMap(source);
-        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
-        if (keyPosition >= map.size()) {
+        if (keyPosition >= clearedMap.size()) {
             throw new IndexOutOfBoundsException("Make sure that indexes of keyPosition and messagePosition are valid");
         }
         String neededMessage = "";
         int i = 0;
-        for (Map.Entry entry : map.entrySet()) {
+        for (Map.Entry entry : clearedMap.entrySet()) {
             if (i++ == keyPosition) {
-                String[] messagesArr = entry.getValue().toString().split(", ");
+                String[] messagesArr = entry.getValue().toString().split(",");
                 neededMessage = messagesArr[messagePosition];
                 break;
             }
@@ -196,18 +184,50 @@ public class Parser {
         return neededMessage;
     }
 
-    public static String getKeyWithMessageByPosition(String source, int keyPosition, int messagePosition, boolean cleared) throws Exception {
+    /**
+     * This method returns value by key and message position. This is what
+     * you need when you need only one value from list of values in the json by key
+     *
+     * @param source          original String json for parsing
+     * @param key             needed key
+     * @param messagePosition needed position of message if there is list of messages
+     * @return value without key from original json
+     * @throws Exception if index of message position is not valid
+     */
+    public static String getMessageByPosition(String source, String key, int messagePosition) throws Exception {
         jsonToMap(source);
-        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
-        if (keyPosition >= map.size()) {
+        String neededMessage = "";
+        for (Map.Entry entry : clearedMap.entrySet()) {
+            if (key.equals(entry.getKey().toString())) {
+                String[] messagesArr = entry.getValue().toString().split(",");
+                neededMessage = messagesArr[messagePosition];
+                break;
+            }
+        }
+        return neededMessage;
+    }
+
+    /**
+     * This method returns key-value message. This is what
+     * you need when you need key-value message from json
+     *
+     * @param source          original String json for parsing
+     * @param keyPosition     position of key
+     * @param messagePosition position of message
+     * @return key-value message
+     * @throws Exception if index of key or message is not valid
+     */
+    public static String getKeyWithMessageByPosition(String source, int keyPosition, int messagePosition) throws Exception {
+        jsonToMap(source);
+        if (keyPosition >= clearedMap.size()) {
             throw new IndexOutOfBoundsException("Make sure that indexes of keyPosition and messagePosition are valid");
         }
         String neededMessage = "";
         String neededKey = "";
         int i = 0;
-        for (Map.Entry entry : map.entrySet()) {
+        for (Map.Entry entry : clearedMap.entrySet()) {
             if (i++ == keyPosition) {
-                String[] messagesArr = entry.getValue().toString().split(", ");
+                String[] messagesArr = entry.getValue().toString().split(",");
                 neededKey = entry.getKey().toString();
                 neededMessage = messagesArr[messagePosition];
                 break;
@@ -216,12 +236,44 @@ public class Parser {
         return neededKey + " - " + neededMessage;
     }
 
-    public static String getMessageByKey(String source, String key, boolean cleared) throws Exception {
+    /**
+     * This method returns key-value message. This is what
+     * you need when you need key-value message from json
+     *
+     * @param source          original String json for parsing
+     * @param key             String key
+     * @param messagePosition position of message
+     * @return key-value message
+     * @throws Exception if index of message is not valid
+     */
+    public static String getKeyWithMessageByPosition(String source, String key, int messagePosition) throws Exception {
         jsonToMap(source);
-        //Map<String, Object> map = cleared ? clearedMap : notClearedMap;
-        Map<String, Object> map = notNestingMap;
         String neededMessage = "";
-        for (Map.Entry entry : map.entrySet()) {
+        String neededKey = "";
+        for (Map.Entry entry : clearedMap.entrySet()) {
+            if (key.equals(entry.getKey().toString())) {
+                String[] messagesArr = entry.getValue().toString().split(",");
+                neededKey = entry.getKey().toString();
+                neededMessage = messagesArr[messagePosition];
+                break;
+            }
+        }
+        return neededKey + " - " + neededMessage;
+    }
+
+    /**
+     * This method returns value by key.
+     * This is what you need when you need value message without key
+     *
+     * @param source original String json for parsing
+     * @param key    String key
+     * @return value message, without key
+     * @throws Exception when json parsing occurs
+     */
+    public static String getMessageByKey(String source, String key) throws Exception {
+        jsonToMap(source);
+        String neededMessage = "";
+        for (Map.Entry entry : clearedMap.entrySet()) {
             if (key.equals(entry.getKey().toString())) {
                 neededMessage = entry.getValue().toString().trim();
                 break;
@@ -230,14 +282,21 @@ public class Parser {
         return neededMessage;
     }
 
-    public static String getMessageByKey(String source, String key, int messagePosition, boolean cleared) throws Exception {
+    /**
+     * This method returns value by key and message position if there is list of values.
+     * This is what you need when you need value message by position without key
+     *
+     * @param source original String json for parsing
+     * @param key    String key
+     * @return value message, without key
+     * @throws Exception
+     */
+    public static String getMessageByKey(String source, String key, int messagePosition) throws Exception {
         jsonToMap(source);
-        Map<String, Object> map = cleared ? clearedMap : notClearedMap;
         String neededMessage = "";
-        int i = 0;
-        for (Map.Entry entry : map.entrySet()) {
+        for (Map.Entry entry : clearedMap.entrySet()) {
             if (key.equals(entry.getKey().toString())) {
-                String[] messagesArr = entry.getValue().toString().split(", ");
+                String[] messagesArr = entry.getValue().toString().split(",");
                 neededMessage = messagesArr[messagePosition];
                 break;
             }
@@ -245,6 +304,70 @@ public class Parser {
         return neededMessage;
     }
 
-    // TODO: 4/4/17 all errors and keys
+    /**
+     * This method returns value message by key position. Value will be returned without key
+     *
+     * @param source      original String json for parsing
+     * @param keyPosition position of key
+     * @return value message by key position. Value will be returned without key
+     * @throws JSONException if error of json parsing happened
+     */
+    public static String getMessageByKeyPosition(String source, int keyPosition) throws JSONException {
+        jsonToMap(source);
+        if (keyPosition >= clearedMap.size()) {
+            throw new IndexOutOfBoundsException("Make sure that index of keyPosition is valid");
+        }
+        String neededMessage = "";
+        int i = 0;
+        for (Map.Entry entry : clearedMap.entrySet()) {
+            if (i++ == keyPosition) {
+                neededMessage = entry.getValue().toString();
+                break;
+            }
+        }
+        return neededMessage;
+    }
+
+    /**
+     * This method returns full String json without nesting and empty objects. Clean String json
+     * will be returned
+     *
+     * @param source original String json for parsing
+     * @return full String json without nesting and empty json objects
+     * @throws JSONException if error of json parsing happened
+     */
+    public static String getClearedJson(String source) throws JSONException {
+        jsonToMap(source);
+        JSONObject json = new JSONObject(clearedMap);
+        Log.d(TAG, "json toString - " + json.toString());
+        return json.toString();
+    }
+
+    private static boolean isValueValid(String value) {
+        return !(value.trim().equals("{}") || value.trim().equals("[]") || value.trim().isEmpty()
+                || value.trim().equals(","));
+    }
+
+    private static void clearUpMap(Map<String, Object> map) {
+        for (Map.Entry entry : map.entrySet()) {
+            String value = entry.getValue().toString();
+            value = value
+                    .replaceAll("\\[", "")
+                    .replaceAll("\\]", "")
+                    .replaceAll("\\{", "")
+                    .replaceAll("\\}", "")
+                    .replaceAll("\"", "")
+                    .replaceAll("=", "-")
+                    .replaceAll("\"", "")
+                    .trim();
+            if (isValueValid(value)) {
+                clearedMap.put(entry.getKey().toString(), value);
+            }
+        }
+    }
+
+    private static boolean isNullOrEmpty(String string) {
+        return string == null || string.isEmpty();
+    }
 
 }
